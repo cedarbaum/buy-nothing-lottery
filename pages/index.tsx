@@ -77,7 +77,7 @@ export default function Home() {
     "algorithm",
     queryTypes
       .stringEnum(Object.values(Algorithm))
-      .withDefault(Algorithm.RANDOM)
+      .withDefault(Algorithm.FAIREST)
   );
 
   const onItemTextChange = (index: number) => (e: any) => {
