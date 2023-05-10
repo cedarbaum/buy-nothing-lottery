@@ -7,6 +7,11 @@ enum Algorithm {
   FAIREST = "fairest",
 }
 
+type Item = {
+  name: string;
+  assignedTo: null | string;
+};
+
 type Person = {
   name: string;
   items: string[];
@@ -26,7 +31,9 @@ export default function Home() {
   >(undefined);
 
   const [{ items, people }, setItemsAndPeople] = useQueryStates({
-    items: queryTypes.array(queryTypes.string).withDefault([""]),
+    items: queryTypes
+      .array(queryTypes.json<Item>())
+      .withDefault([{ name: "", assignedTo: null }]),
     people: queryTypes
       .array(queryTypes.json<Person>())
       .withDefault([{ name: "", items: [] }]),
@@ -41,7 +48,7 @@ export default function Home() {
 
   const onItemTextChange = (index: number) => (e: any) => {
     const newItems = [...items];
-    newItems[index] = e.target.value;
+    newItems[index].name = e.target.value;
     setItemsAndPeople(
       { people, items: newItems },
       { scroll: false, shallow: true }
@@ -50,7 +57,16 @@ export default function Home() {
 
   const onAddItem = () => {
     setItemsAndPeople(
-      { people, items: [...items, ""] },
+      { people, items: [...items, { name: "", assignedTo: null }] },
+      { scroll: false, shallow: true }
+    );
+  };
+
+  const onItemAssigneeChange = (index: number) => (e: any) => {
+    const newItems = [...items];
+    newItems[index].assignedTo = e.target.value;
+    setItemsAndPeople(
+      { people, items: newItems },
       { scroll: false, shallow: true }
     );
   };
@@ -106,10 +122,13 @@ export default function Home() {
   };
 
   const runLottery = () => {
-    const newItems: string[] = [];
-    items.forEach((name) => {
-      if (newItems.indexOf(name) < 0 && name !== "") {
-        newItems.push(name);
+    const newItems: Item[] = [];
+    items.forEach((item) => {
+      if (
+        newItems.find((i) => i.name === item.name) === undefined &&
+        item.name !== ""
+      ) {
+        newItems.push(item);
       }
     });
 
@@ -153,11 +172,13 @@ export default function Home() {
 
   useEffect(() => {
     setCanRunLottery(
-      items.filter((i) => i !== "").length > 0 &&
+      items.filter((i) => i.name !== "").length > 0 &&
         people.filter(
           (p) =>
             p.name !== "" &&
-            p.items.filter((p) => items.indexOf(p) >= 0).length > 0
+            p.items.filter(
+              (item) => items.find((i) => i.name === item) !== undefined
+            ).length > 0
         ).length > 0
     );
   }, [people, items]);
@@ -174,23 +195,39 @@ export default function Home() {
           {items.map((item, idx) => (
             <div
               key={`item${idx}`}
-              className="flex flex-row items-center card bg-base-100 mb-4"
+              className="card bg-base-100 mb-4 border border-color-primary p-4"
             >
-              <div className="form-control w-full">
-                <label className="input-group">
-                  <span>Item {idx + 1}</span>
-                  <input
-                    type="text"
-                    placeholder="Item..."
-                    className="input input-bordered"
-                    value={item}
-                    onChange={onItemTextChange(idx)}
-                  />
-                </label>
+              <div className="flex flex-row items-center">
+                <div className="form-control w-full">
+                  <label className="input-group">
+                    <span>Item {idx + 1}</span>
+                    <input
+                      type="text"
+                      placeholder="Item..."
+                      className="input input-bordered"
+                      value={item.name}
+                      onChange={onItemTextChange(idx)}
+                    />
+                  </label>
+                </div>
+                {(idx > 0 || items.length > 1) && (
+                  <DeleteButton onClick={onDelItem(idx)} />
+                )}
               </div>
-              {(idx > 0 || items.length > 1) && (
-                <DeleteButton onClick={onDelItem(idx)} />
-              )}
+              <select
+                className="select select-bordered w-full mt-4"
+                value={item.assignedTo || ""}
+                onChange={onItemAssigneeChange(idx)}
+              >
+                <option value="">Not assigned</option>
+                {people
+                  .filter((p) => p.name !== "")
+                  .map((person, personIdx) => (
+                    <option key={`person${personIdx}`} value={person.name}>
+                      {person.name}
+                    </option>
+                  ))}
+              </select>
             </div>
           ))}
           <AddButton onClick={onAddItem}>Add item</AddButton>
@@ -221,19 +258,19 @@ export default function Home() {
               </div>
               <div className="mt-2">
                 {items
-                  .filter((item) => item !== "")
+                  .filter((item) => item.name !== "")
                   .map((item, itemIdx) => (
                     <div
                       key={`itemcheckbox${itemIdx}`}
                       className="form-control"
                     >
                       <label className="label cursor-pointer">
-                        <span className="label-text">{item}</span>
+                        <span className="label-text">{item.name}</span>
                         <input
                           type="checkbox"
                           className="checkbox"
-                          checked={person.items.indexOf(item) >= 0}
-                          onChange={onPersonItemsChange(personIdx, item)}
+                          checked={person.items.indexOf(item.name) >= 0}
+                          onChange={onPersonItemsChange(personIdx, item.name)}
                         />
                       </label>
                     </div>
@@ -243,8 +280,9 @@ export default function Home() {
           ))}
           <AddButton onClick={onAddPerson}>Add person</AddButton>
         </div>
+        <h1 className="text-2xl font-bold mt-4">Algorithm</h1>
         <select
-          className="select select-bordered  w-full mt-4"
+          className="select select-bordered w-full mt-4"
           value={algorithm.toUpperCase()}
           onChange={(e) =>
             setAlgorithm(e.target.value.toLowerCase() as Algorithm, {
@@ -334,27 +372,29 @@ function DeleteButton(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   );
 }
 
-function randomItemAssignment(items: string[], people: Person[]): ItemWinner[] {
+function randomItemAssignment(items: Item[], people: Person[]): ItemWinner[] {
   const winners: ItemWinner[] = [];
   items.forEach((item) => {
+    if (people.find((p) => p.name === item.assignedTo)) {
+      winners.push({ item: item.name, winner: item.assignedTo! });
+      return;
+    }
+
     const peopleInterestedInItem = people.filter((person) =>
-      person.items.includes(item)
+      person.items.includes(item.name)
     );
     if (peopleInterestedInItem.length > 0) {
       const winnerIdx = Math.floor(
         Math.random() * peopleInterestedInItem.length
       );
       const winner = peopleInterestedInItem[winnerIdx];
-      winners.push({ item: item, winner: winner.name });
+      winners.push({ item: item.name, winner: winner.name });
     }
   });
   return winners;
 }
 
-function fairestItemAssignment(
-  items: string[],
-  people: Person[]
-): ItemWinner[] {
+function fairestItemAssignment(items: Item[], people: Person[]): ItemWinner[] {
   function assignItems(
     assignments: ItemWinner[],
     itemIdx: number
@@ -366,8 +406,16 @@ function fairestItemAssignment(
       return [assignments];
     }
 
+    if (people.find((p) => p.name === item.assignedTo)) {
+      const newAssignments = [
+        ...assignments,
+        { item: item.name, winner: item.assignedTo! },
+      ];
+      return assignItems(newAssignments, itemIdx + 1);
+    }
+
     const peopleInterestedInItem = people.filter((person) =>
-      person.items.includes(item)
+      person.items.includes(item.name)
     );
     if (peopleInterestedInItem.length === 0) {
       return assignItems(assignments, itemIdx + 1);
@@ -375,7 +423,10 @@ function fairestItemAssignment(
 
     for (let i = 0; i < peopleInterestedInItem.length; i++) {
       const person = peopleInterestedInItem[i];
-      const newAssignments = [...assignments, { item, winner: person.name }];
+      const newAssignments = [
+        ...assignments,
+        { item: item.name, winner: person.name },
+      ];
       if (itemIdx == items.length - 1) {
         returnAssignments.push(newAssignments);
       } else {
