@@ -17,74 +17,6 @@ type ItemWinner = {
   winner: string;
 };
 
-function randomItemAssignment(items: Item[]): ItemWinner[] {
-  const winners: ItemWinner[] = [];
-  items.forEach((item) => {
-    if (item.people.length > 0) {
-      const winnerIdx = Math.floor(Math.random() * item.people.length);
-      const winner = item.people[winnerIdx];
-      winners.push({ item: item.name, winner });
-    }
-  });
-  return winners;
-}
-
-function fairestItemAssignment(items: Item[]): ItemWinner[] {
-  function assignItems(
-    assignments: ItemWinner[],
-    itemIdx: number
-  ): ItemWinner[][] {
-    const item = items[itemIdx];
-    const returnAssignments: ItemWinner[][] = [];
-
-    if (item === undefined) {
-      return [assignments];
-    }
-
-    if (item.people.length === 0) {
-      return assignItems(assignments, itemIdx + 1);
-    }
-
-    for (let i = 0; i < item.people.length; i++) {
-      const person = item.people[i];
-      const newAssignments = [
-        ...assignments,
-        { item: item.name, winner: person },
-      ];
-      if (itemIdx == items.length - 1) {
-        returnAssignments.push(newAssignments);
-      } else {
-        const assignmentsForIter = assignItems(newAssignments, itemIdx + 1);
-        returnAssignments.push(...assignmentsForIter);
-      }
-    }
-
-    return returnAssignments;
-  }
-
-  if (items.length === 0) {
-    return [];
-  }
-
-  const allAssignments = assignItems([], 0);
-  const scoredAssignments = allAssignments.map((assignment) => {
-    return { assignment, score: new Set(assignment.map((i) => i.winner)).size };
-  });
-  const maxAssignmentScore = scoredAssignments.reduce(
-    (max, cur) => (cur.score > max ? cur.score : max),
-    0
-  );
-  const allAssignmentsWithMaxScore = scoredAssignments
-    .filter((a) => a.score == maxAssignmentScore)
-    .map((a) => a.assignment);
-  const winners =
-    allAssignmentsWithMaxScore[
-      Math.floor(Math.random() * allAssignmentsWithMaxScore.length)
-    ];
-
-  return winners;
-}
-
 export default function Home() {
   const router = useRouter();
   const [hydrated, setHydrated] = useState(false);
@@ -395,4 +327,108 @@ function DeleteButton(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
       </svg>
     </button>
   );
+}
+
+function randomItemAssignment(items: Item[]): ItemWinner[] {
+  const winners: ItemWinner[] = [];
+  items.forEach((item) => {
+    if (item.people.length > 0) {
+      const winnerIdx = Math.floor(Math.random() * item.people.length);
+      const winner = item.people[winnerIdx];
+      winners.push({ item: item.name, winner });
+    }
+  });
+  return winners;
+}
+
+function fairestItemAssignment(items: Item[]): ItemWinner[] {
+  function assignItems(
+    assignments: ItemWinner[],
+    itemIdx: number
+  ): ItemWinner[][] {
+    const item = items[itemIdx];
+    const returnAssignments: ItemWinner[][] = [];
+
+    if (item === undefined) {
+      return [assignments];
+    }
+
+    if (item.people.length === 0) {
+      return assignItems(assignments, itemIdx + 1);
+    }
+
+    for (let i = 0; i < item.people.length; i++) {
+      const person = item.people[i];
+      const newAssignments = [
+        ...assignments,
+        { item: item.name, winner: person },
+      ];
+      if (itemIdx == items.length - 1) {
+        returnAssignments.push(newAssignments);
+      } else {
+        const assignmentsForIter = assignItems(newAssignments, itemIdx + 1);
+        returnAssignments.push(...assignmentsForIter);
+      }
+    }
+
+    return returnAssignments;
+  }
+
+  const allPeople = new Set(items.flatMap((item) => item.people));
+  function getScoreForAssignment(assignment: ItemWinner[]): number {
+    const resourcesForPerson = new Map<string, number>();
+    for (const person of Array.from(allPeople.values())) {
+      resourcesForPerson.set(person, 0);
+    }
+
+    for (const itemWinner of assignment) {
+      const resources = resourcesForPerson.get(itemWinner.winner);
+      if (resources === undefined) {
+        throw new Error("Invalid assignment");
+      }
+      resourcesForPerson.set(itemWinner.winner, resources + 1);
+    }
+
+    return (
+      1 - calculateGiniCoefficient(Array.from(resourcesForPerson.values()))
+    );
+  }
+
+  const allAssignments = assignItems([], 0);
+  const scoredAssignments = allAssignments.map((assignment) => {
+    return { assignment, score: getScoreForAssignment(assignment) };
+  });
+  const maxAssignmentScore = scoredAssignments.reduce(
+    (max, cur) => (cur.score > max ? cur.score : max),
+    0
+  );
+  const allAssignmentsWithMaxScore = scoredAssignments
+    .filter((a) => a.score == maxAssignmentScore)
+    .map((a) => a.assignment);
+  const winners =
+    allAssignmentsWithMaxScore[
+      Math.floor(Math.random() * allAssignmentsWithMaxScore.length)
+    ];
+
+  return winners;
+}
+
+function calculateGiniCoefficient(distribution: number[]): number {
+  // Sort the distribution in ascending order
+  const sortedDist = distribution.slice().sort((a, b) => a - b);
+
+  // Calculate the sum of absolute differences
+  const n = distribution.length;
+  let sumDiff = 0;
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      sumDiff += Math.abs(sortedDist[j] - sortedDist[i]);
+    }
+  }
+
+  // Calculate the Gini coefficient using the formula
+  const A = sumDiff / (2 * n * n);
+  const G = A / 0.5;
+
+  return G;
 }
