@@ -1,6 +1,7 @@
 import { queryTypes, useQueryState, useQueryStates } from "next-usequerystate";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
+import { themeChange } from "theme-change";
 
 enum Algorithm {
   RANDOM = "random",
@@ -77,11 +78,6 @@ export default function Home() {
     queryTypes
       .stringEnum(Object.values(Algorithm))
       .withDefault(Algorithm.RANDOM)
-  );
-
-  const [theme, setTheme] = useQueryState(
-    "theme",
-    queryTypes.stringEnum(themes).withDefault(themes[0])
   );
 
   const onItemTextChange = (index: number) => (e: any) => {
@@ -264,15 +260,22 @@ export default function Home() {
     );
   }, [people, items]);
 
+  useEffect(() => {
+    if (!router.isReady || !hydrateUiFromQueryParams) {
+      return;
+    }
+    themeChange(false);
+    if (document.documentElement.getAttribute("data-theme") === null) {
+      document.documentElement.setAttribute("data-theme", themes[0]);
+    }
+  }, [router.isReady, hydrateUiFromQueryParams]);
+
   if (!router.isReady || !hydrateUiFromQueryParams) {
     return null;
   }
 
   return (
-    <main
-      className="flex min-h-screen flex-col items-center"
-      data-theme={theme}
-    >
+    <main className="flex min-h-screen flex-col items-center">
       <div className="flex flex-col p-4">
         <div className="flex justify-between">
           <button className="btn" onClick={copyUrlToClipboard}>
@@ -282,9 +285,9 @@ export default function Home() {
             Clear data
           </button>
           <select
+            data-choose-theme
+            defaultValue={themes[0]}
             className="select select-bordered"
-            onChange={(e) => setTheme(e.target.value)}
-            value={theme}
           >
             {themes.map((theme, themeIdx) => (
               <option key={`theme${themeIdx}`} value={theme}>
