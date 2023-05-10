@@ -190,7 +190,9 @@ export default function Home() {
                   />
                 </label>
               </div>
-              {idx > 0 && <DeleteButton onClick={onDelPerson(idx)} />}
+              {(idx > 0 || names.length > 1) && (
+                <DeleteButton onClick={onDelPerson(idx)} />
+              )}
             </div>
           ))}
           <AddButton onClick={onAddPerson}>Add person</AddButton>
@@ -215,7 +217,9 @@ export default function Home() {
                     />
                   </label>
                 </div>
-                {itemIdx > 0 && <DeleteButton onClick={onDelItem(itemIdx)} />}
+                {(itemIdx > 0 || items.length > 1) && (
+                  <DeleteButton onClick={onDelItem(itemIdx)} />
+                )}
               </div>
               <div className="mt-2">
                 {names
