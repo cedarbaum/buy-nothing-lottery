@@ -7,9 +7,9 @@ enum Algorithm {
   FAIREST = "fairest",
 }
 
-type Item = {
+type Person = {
   name: string;
-  people: string[];
+  items: string[];
 };
 
 type ItemWinner = {
@@ -25,11 +25,11 @@ export default function Home() {
     ItemWinner[] | undefined
   >(undefined);
 
-  const [{ names, items }, setNamesAndItems] = useQueryStates({
-    names: queryTypes.array(queryTypes.string).withDefault([""]),
-    items: queryTypes
-      .array(queryTypes.json<Item>())
-      .withDefault([{ name: "", people: [] }]),
+  const [{ items, people }, setItemsAndPeople] = useQueryStates({
+    items: queryTypes.array(queryTypes.string).withDefault([""]),
+    people: queryTypes
+      .array(queryTypes.json<Person>())
+      .withDefault([{ name: "", items: [] }]),
   });
 
   const [algorithm, setAlgorithm] = useQueryState(
@@ -39,58 +39,56 @@ export default function Home() {
       .withDefault(Algorithm.RANDOM)
   );
 
-  const onTextChange = (index: number) => (e: any) => {
-    const newNames = [...names];
-    newNames[index] = e.target.value;
-    setNamesAndItems(
-      { items, names: newNames },
-      { scroll: false, shallow: true }
-    );
-  };
-
-  const onAddPerson = () => {
-    setNamesAndItems(
-      { items, names: [...names, ""] },
-      { scroll: false, shallow: true }
-    );
-  };
-
-  const onDelPerson = (index: number) => () => {
-    const newNames = [...names];
-    newNames.splice(index, 1);
-    setNamesAndItems(
-      { items, names: newNames },
-      { scroll: false, shallow: true }
-    );
-  };
-
-  const onItemNameChange = (index: number) => (e: any) => {
+  const onItemTextChange = (index: number) => (e: any) => {
     const newItems = [...items];
-    newItems[index].name = e.target.value;
-    setNamesAndItems(
-      { names, items: newItems },
-      { scroll: false, shallow: true }
-    );
-  };
-
-  const onItemPeopleChange = (index: number, person: string) => (e: any) => {
-    const newItems = [...items];
-    if (e.target.checked) {
-      newItems[index].people = [...newItems[index].people, person];
-    } else {
-      newItems[index].people = newItems[index].people.filter(
-        (p) => p !== person
-      );
-    }
-    setNamesAndItems(
-      { names, items: newItems },
+    newItems[index] = e.target.value;
+    setItemsAndPeople(
+      { people, items: newItems },
       { scroll: false, shallow: true }
     );
   };
 
   const onAddItem = () => {
-    setNamesAndItems(
-      { names, items: [...items, { name: "", people: [] }] },
+    setItemsAndPeople(
+      { people, items: [...items, ""] },
+      { scroll: false, shallow: true }
+    );
+  };
+
+  const onDelItem = (index: number) => () => {
+    const newItems = [...items];
+    newItems.splice(index, 1);
+    setItemsAndPeople(
+      { people, items: newItems },
+      { scroll: false, shallow: true }
+    );
+  };
+
+  const onPersonNameChange = (index: number) => (e: any) => {
+    const newPeople = [...people];
+    newPeople[index].name = e.target.value;
+    setItemsAndPeople(
+      { items, people: newPeople },
+      { scroll: false, shallow: true }
+    );
+  };
+
+  const onPersonItemsChange = (index: number, item: string) => (e: any) => {
+    const newPeople = [...people];
+    if (e.target.checked) {
+      newPeople[index].items = [...newPeople[index].items, item];
+    } else {
+      newPeople[index].items = newPeople[index].items.filter((p) => p !== item);
+    }
+    setItemsAndPeople(
+      { items, people: newPeople },
+      { scroll: false, shallow: true }
+    );
+  };
+
+  const onAddPerson = () => {
+    setItemsAndPeople(
+      { items, people: [...people, { name: "", items: [] }] },
       {
         scroll: false,
         shallow: true,
@@ -98,47 +96,47 @@ export default function Home() {
     );
   };
 
-  const onDelItem = (index: number) => () => {
-    const newItems = [...items];
-    newItems.splice(index, 1);
-    setNamesAndItems(
-      { names, items: newItems },
+  const onDelPerson = (index: number) => () => {
+    const newPeople = [...people];
+    newPeople.splice(index, 1);
+    setItemsAndPeople(
+      { items, people: newPeople },
       { scroll: false, shallow: true }
     );
   };
 
   const runLottery = () => {
-    const newNames: string[] = [];
-    names.forEach((name) => {
-      if (newNames.indexOf(name) < 0 && name !== "") {
-        newNames.push(name);
+    const newItems: string[] = [];
+    items.forEach((name) => {
+      if (newItems.indexOf(name) < 0 && name !== "") {
+        newItems.push(name);
       }
     });
 
-    const newItems: Item[] = [];
-    items.forEach((item) => {
-      if (item.name !== "") {
-        const newPeople: string[] = [];
-        item.people.forEach((person) => {
-          if (newNames.indexOf(person) >= 0) {
-            newPeople.push(person);
+    const newPeople: Person[] = [];
+    people.forEach((person) => {
+      if (person.name !== "") {
+        const newItems: string[] = [];
+        person.items.forEach((item) => {
+          if (newItems.indexOf(item) < 0) {
+            newItems.push(item);
           }
         });
-        newItems.push({ name: item.name, people: newPeople });
+        newPeople.push({ name: person.name, items: newItems });
       }
     });
 
     const itemAssignments = (() => {
       switch (algorithm) {
         case Algorithm.RANDOM:
-          return randomItemAssignment(newItems);
+          return randomItemAssignment(newItems, newPeople);
         case Algorithm.FAIREST:
-          return fairestItemAssignment(newItems);
+          return fairestItemAssignment(newItems, newPeople);
       }
     })();
 
-    setNamesAndItems(
-      { names: newNames, items: newItems },
+    setItemsAndPeople(
+      { people: newPeople, items: newItems },
       { scroll: false, shallow: true }
     );
     setLotteryResults(itemAssignments);
@@ -155,14 +153,14 @@ export default function Home() {
 
   useEffect(() => {
     setCanRunLottery(
-      names.filter((n) => n !== "").length > 0 &&
-        items.filter(
-          (i) =>
-            i.name !== "" &&
-            i.people.filter((p) => names.indexOf(p) >= 0).length > 0
+      items.filter((i) => i !== "").length > 0 &&
+        people.filter(
+          (p) =>
+            p.name !== "" &&
+            p.items.filter((p) => items.indexOf(p) >= 0).length > 0
         ).length > 0
     );
-  }, [names, items]);
+  }, [people, items]);
 
   if (!router.isReady || !hydrated) {
     return null;
@@ -171,68 +169,71 @@ export default function Home() {
   return (
     <main className="flex min-h-screen flex-col items-center">
       <div className="flex flex-col p-4">
-        <h1 className="text-2xl font-bold">People</h1>
+        <h1 className="text-2xl font-bold">Items</h1>
         <div className="card mt-4">
-          {names.map((name, idx) => (
+          {items.map((item, idx) => (
             <div
-              key={`person${idx}`}
+              key={`item${idx}`}
               className="flex flex-row items-center card bg-base-100 mb-4"
             >
               <div className="form-control w-full">
                 <label className="input-group">
-                  <span>Person {idx + 1}</span>
+                  <span>Item {idx + 1}</span>
                   <input
                     type="text"
-                    placeholder="Name..."
+                    placeholder="Item..."
                     className="input input-bordered"
-                    value={name}
-                    onChange={onTextChange(idx)}
+                    value={item}
+                    onChange={onItemTextChange(idx)}
                   />
                 </label>
               </div>
-              {(idx > 0 || names.length > 1) && (
-                <DeleteButton onClick={onDelPerson(idx)} />
+              {(idx > 0 || items.length > 1) && (
+                <DeleteButton onClick={onDelItem(idx)} />
               )}
             </div>
           ))}
-          <AddButton onClick={onAddPerson}>Add person</AddButton>
+          <AddButton onClick={onAddItem}>Add item</AddButton>
         </div>
-        <h1 className="text-2xl font-bold mt-4">Items</h1>
+        <h1 className="text-2xl font-bold mt-4">People</h1>
         <div className="card mt-4">
-          {items.map((item, itemIdx) => (
+          {people.map((person, personIdx) => (
             <div
-              key={`item${itemIdx}`}
+              key={`person${personIdx}`}
               className="card bg-base-100 mb-4 border border-color-primary p-4"
             >
               <div className="flex flex-row items-center ">
                 <div className="form-control w-full">
                   <label className="input-group">
-                    <span>Item {itemIdx + 1}</span>
+                    <span>Person {personIdx + 1}</span>
                     <input
                       type="text"
-                      placeholder="Item name..."
+                      placeholder="Name..."
                       className="input input-bordered"
-                      value={item.name}
-                      onChange={onItemNameChange(itemIdx)}
+                      value={person.name}
+                      onChange={onPersonNameChange(personIdx)}
                     />
                   </label>
                 </div>
-                {(itemIdx > 0 || items.length > 1) && (
-                  <DeleteButton onClick={onDelItem(itemIdx)} />
+                {(personIdx > 0 || people.length > 1) && (
+                  <DeleteButton onClick={onDelPerson(personIdx)} />
                 )}
               </div>
               <div className="mt-2">
-                {names
-                  .filter((name) => name !== "")
-                  .map((name, nameIdx) => (
-                    <div key={`checkbox${nameIdx}`} className="form-control">
+                {items
+                  .filter((item) => item !== "")
+                  .map((item, itemIdx) => (
+                    <div
+                      key={`itemcheckbox${itemIdx}`}
+                      className="form-control"
+                    >
                       <label className="label cursor-pointer">
-                        <span className="label-text">{name}</span>
+                        <span className="label-text">{item}</span>
                         <input
                           type="checkbox"
                           className="checkbox"
-                          checked={item.people.indexOf(name) >= 0}
-                          onChange={onItemPeopleChange(itemIdx, name)}
+                          checked={person.items.indexOf(item) >= 0}
+                          onChange={onPersonItemsChange(personIdx, item)}
                         />
                       </label>
                     </div>
@@ -240,7 +241,7 @@ export default function Home() {
               </div>
             </div>
           ))}
-          <AddButton onClick={onAddItem}>Add item</AddButton>
+          <AddButton onClick={onAddPerson}>Add person</AddButton>
         </div>
         <select
           className="select select-bordered  w-full mt-4"
@@ -333,19 +334,27 @@ function DeleteButton(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   );
 }
 
-function randomItemAssignment(items: Item[]): ItemWinner[] {
+function randomItemAssignment(items: string[], people: Person[]): ItemWinner[] {
   const winners: ItemWinner[] = [];
   items.forEach((item) => {
-    if (item.people.length > 0) {
-      const winnerIdx = Math.floor(Math.random() * item.people.length);
-      const winner = item.people[winnerIdx];
-      winners.push({ item: item.name, winner });
+    const peopleInterestedInItem = people.filter((person) =>
+      person.items.includes(item)
+    );
+    if (peopleInterestedInItem.length > 0) {
+      const winnerIdx = Math.floor(
+        Math.random() * peopleInterestedInItem.length
+      );
+      const winner = peopleInterestedInItem[winnerIdx];
+      winners.push({ item: item, winner: winner.name });
     }
   });
   return winners;
 }
 
-function fairestItemAssignment(items: Item[]): ItemWinner[] {
+function fairestItemAssignment(
+  items: string[],
+  people: Person[]
+): ItemWinner[] {
   function assignItems(
     assignments: ItemWinner[],
     itemIdx: number
@@ -357,16 +366,16 @@ function fairestItemAssignment(items: Item[]): ItemWinner[] {
       return [assignments];
     }
 
-    if (item.people.length === 0) {
+    const peopleInterestedInItem = people.filter((person) =>
+      person.items.includes(item)
+    );
+    if (peopleInterestedInItem.length === 0) {
       return assignItems(assignments, itemIdx + 1);
     }
 
-    for (let i = 0; i < item.people.length; i++) {
-      const person = item.people[i];
-      const newAssignments = [
-        ...assignments,
-        { item: item.name, winner: person },
-      ];
+    for (let i = 0; i < peopleInterestedInItem.length; i++) {
+      const person = peopleInterestedInItem[i];
+      const newAssignments = [...assignments, { item, winner: person.name }];
       if (itemIdx == items.length - 1) {
         returnAssignments.push(newAssignments);
       } else {
@@ -378,11 +387,10 @@ function fairestItemAssignment(items: Item[]): ItemWinner[] {
     return returnAssignments;
   }
 
-  const allPeople = new Set(items.flatMap((item) => item.people));
   function getScoreForAssignment(assignment: ItemWinner[]): number {
     const resourcesForPerson = new Map<string, number>();
-    for (const person of Array.from(allPeople.values())) {
-      resourcesForPerson.set(person, 0);
+    for (const person of people) {
+      resourcesForPerson.set(person.name, 0);
     }
 
     for (const itemWinner of assignment) {
