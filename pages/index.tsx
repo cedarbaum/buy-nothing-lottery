@@ -81,7 +81,7 @@ export default function Home() {
 
   const [theme, setTheme] = useQueryState(
     "theme",
-    queryTypes.stringEnum(themes).withDefault("dark")
+    queryTypes.stringEnum(themes).withDefault(themes[0])
   );
 
   const onItemTextChange = (index: number) => (e: any) => {
