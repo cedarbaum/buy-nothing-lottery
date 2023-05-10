@@ -9,7 +9,7 @@ enum Algorithm {
 
 type Item = {
   name: string;
-  assignedTo: null | string;
+  claimedBy: null | string;
 };
 
 type Person = {
@@ -17,23 +17,56 @@ type Person = {
   items: string[];
 };
 
-type ItemWinner = {
+type ItemAssignment = {
   item: string;
-  winner: string;
+  assignee: string;
 };
+
+const themes = [
+  "light",
+  "dark",
+  "cupcake",
+  "bumblebee",
+  "emerald",
+  "corporate",
+  "synthwave",
+  "retro",
+  "cyberpunk",
+  "valentine",
+  "halloween",
+  "garden",
+  "forest",
+  "aqua",
+  "lofi",
+  "pastel",
+  "fantasy",
+  "wireframe",
+  "black",
+  "luxury",
+  "dracula",
+  "cmyk",
+  "autumn",
+  "business",
+  "acid",
+  "lemonade",
+  "night",
+  "coffee",
+  "winter",
+];
 
 export default function Home() {
   const router = useRouter();
-  const [hydrated, setHydrated] = useState(false);
+  const [hydrateUiFromQueryParams, setShouldHydrateUiFromQueryParams] =
+    useState(false);
   const [canRunLottery, setCanRunLottery] = useState(false);
-  const [lotteryResults, setLotteryResults] = useState<
-    ItemWinner[] | undefined
+  const [itemAssignments, setItemAssignments] = useState<
+    ItemAssignment[] | undefined
   >(undefined);
 
   const [{ items, people }, setItemsAndPeople] = useQueryStates({
     items: queryTypes
       .array(queryTypes.json<Item>())
-      .withDefault([{ name: "", assignedTo: null }]),
+      .withDefault([{ name: "", claimedBy: null }]),
     people: queryTypes
       .array(queryTypes.json<Person>())
       .withDefault([{ name: "", items: [] }]),
@@ -44,6 +77,11 @@ export default function Home() {
     queryTypes
       .stringEnum(Object.values(Algorithm))
       .withDefault(Algorithm.RANDOM)
+  );
+
+  const [theme, setTheme] = useQueryState(
+    "theme",
+    queryTypes.stringEnum(themes).withDefault("dark")
   );
 
   const onItemTextChange = (index: number) => (e: any) => {
@@ -57,14 +95,14 @@ export default function Home() {
 
   const onAddItem = () => {
     setItemsAndPeople(
-      { people, items: [...items, { name: "", assignedTo: null }] },
+      { people, items: [...items, { name: "", claimedBy: null }] },
       { scroll: false, shallow: true }
     );
   };
 
   const onItemAssigneeChange = (index: number) => (e: any) => {
     const newItems = [...items];
-    newItems[index].assignedTo = e.target.value;
+    newItems[index].claimedBy = e.target.value;
     setItemsAndPeople(
       { people, items: newItems },
       { scroll: false, shallow: true }
@@ -121,6 +159,21 @@ export default function Home() {
     );
   };
 
+  const copyUrlToClipboard = () => {
+    navigator.clipboard.writeText(window.location.href);
+  };
+
+  const clearAll = () => {
+    setItemsAndPeople(
+      {
+        items: [{ name: "", claimedBy: null }],
+        people: [{ name: "", items: [] }],
+      },
+      { scroll: false, shallow: true }
+    );
+    setItemAssignments(undefined);
+  };
+
   const runLottery = () => {
     const newItems: Item[] = [];
     items.forEach((item) => {
@@ -158,44 +211,95 @@ export default function Home() {
       { people: newPeople, items: newItems },
       { scroll: false, shallow: true }
     );
-    setLotteryResults(itemAssignments);
+    setItemAssignments(itemAssignments);
+  };
+
+  const setItemClaims = () => {
+    const newItems = [...items];
+    itemAssignments?.forEach((itemAssignment) => {
+      const item = newItems.find((i) => i.name === itemAssignment.item);
+      if (item) {
+        item.claimedBy = itemAssignment.assignee;
+      }
+    });
+    setItemsAndPeople(
+      { people, items: newItems },
+      { scroll: false, shallow: true }
+    );
   };
 
   useEffect(() => {
-    setHydrated(true);
+    setShouldHydrateUiFromQueryParams(true);
   }, []);
 
   useEffect(() => {
     // Scoll to bottom
-    if (lotteryResults) window.scrollTo(0, document.body.scrollHeight);
-  }, [lotteryResults]);
+    if (itemAssignments) window.scrollTo(0, document.body.scrollHeight);
+  }, [itemAssignments]);
+
+  useEffect(() => {
+    // Scroll to last item
+    document
+      .getElementById(`item-${items.length - 1}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [items.length]);
+
+  useEffect(() => {
+    // Scroll to last person
+    document
+      .getElementById(`person-${people.length - 1}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [people.length]);
 
   useEffect(() => {
     setCanRunLottery(
-      items.filter((i) => i.name !== "").length > 0 &&
+      items.find((i) => i.name !== "") !== undefined &&
         people.filter(
           (p) =>
             p.name !== "" &&
-            p.items.filter(
+            p.items.find(
               (item) => items.find((i) => i.name === item) !== undefined
-            ).length > 0
+            ) !== undefined
         ).length > 0
     );
   }, [people, items]);
 
-  if (!router.isReady || !hydrated) {
+  if (!router.isReady || !hydrateUiFromQueryParams) {
     return null;
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center">
+    <main
+      className="flex min-h-screen flex-col items-center"
+      data-theme={theme}
+    >
       <div className="flex flex-col p-4">
-        <h1 className="text-2xl font-bold">Items</h1>
+        <div className="flex justify-between">
+          <button className="btn" onClick={copyUrlToClipboard}>
+            Copy URL
+          </button>
+          <button className="btn" onClick={clearAll}>
+            Clear data
+          </button>
+          <select
+            className="select select-bordered"
+            onChange={(e) => setTheme(e.target.value)}
+            value={theme}
+          >
+            {themes.map((theme, themeIdx) => (
+              <option key={`theme${themeIdx}`} value={theme}>
+                {theme.toUpperCase()}
+              </option>
+            ))}
+          </select>
+        </div>
+        <h1 className="text-2xl font-bold mt-4">Items</h1>
         <div className="card mt-4">
           {items.map((item, idx) => (
             <div
-              key={`item${idx}`}
-              className="card bg-base-100 mb-4 border border-color-primary p-4"
+              id={`item-${idx}`}
+              key={`item-${idx}`}
+              className="card card-bordered bg-base-100 mb-4 p-4"
             >
               <div className="flex flex-row items-center">
                 <div className="form-control w-full">
@@ -216,10 +320,10 @@ export default function Home() {
               </div>
               <select
                 className="select select-bordered w-full mt-4"
-                value={item.assignedTo || ""}
+                value={item.claimedBy || ""}
                 onChange={onItemAssigneeChange(idx)}
               >
-                <option value="">Not assigned</option>
+                <option value="">Not claimed</option>
                 {people
                   .filter((p) => p.name !== "")
                   .map((person, personIdx) => (
@@ -236,8 +340,9 @@ export default function Home() {
         <div className="card mt-4">
           {people.map((person, personIdx) => (
             <div
-              key={`person${personIdx}`}
-              className="card bg-base-100 mb-4 border border-color-primary p-4"
+              id={`person-${personIdx}`}
+              key={`person-${personIdx}`}
+              className="card bg-base-100 mb-4 card-bordered p-4"
             >
               <div className="flex flex-row items-center ">
                 <div className="form-control w-full">
@@ -304,24 +409,30 @@ export default function Home() {
         >
           Run lottery
         </button>
-        {lotteryResults !== undefined && (
-          <div className="overflow-x-auto mt-4">
-            <table className="table w-full">
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th>Winner</th>
-                </tr>
-              </thead>
-              <tbody>
-                {lotteryResults.map((result, idx) => (
-                  <tr key={`result${idx}`}>
-                    <td>{result.item}</td>
-                    <td>{result.winner}</td>
+        {itemAssignments !== undefined && (
+          <div className="flex flex-col">
+            <h1 className="text-2xl font-bold mt-4">Item assignments</h1>
+            <div className="overflow-x-auto mt-4">
+              <table className="table w-full">
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>Winner</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {itemAssignments.map((result, idx) => (
+                    <tr key={`result${idx}`}>
+                      <td>{result.item}</td>
+                      <td>{result.assignee}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <button className="btn mt-4" onClick={setItemClaims}>
+              Set item claims above
+            </button>
           </div>
         )}
       </div>
@@ -372,11 +483,14 @@ function DeleteButton(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   );
 }
 
-function randomItemAssignment(items: Item[], people: Person[]): ItemWinner[] {
-  const winners: ItemWinner[] = [];
+function randomItemAssignment(
+  items: Item[],
+  people: Person[]
+): ItemAssignment[] {
+  const winners: ItemAssignment[] = [];
   items.forEach((item) => {
-    if (people.find((p) => p.name === item.assignedTo)) {
-      winners.push({ item: item.name, winner: item.assignedTo! });
+    if (people.find((p) => p.name === item.claimedBy)) {
+      winners.push({ item: item.name, assignee: item.claimedBy! });
       return;
     }
 
@@ -388,28 +502,31 @@ function randomItemAssignment(items: Item[], people: Person[]): ItemWinner[] {
         Math.random() * peopleInterestedInItem.length
       );
       const winner = peopleInterestedInItem[winnerIdx];
-      winners.push({ item: item.name, winner: winner.name });
+      winners.push({ item: item.name, assignee: winner.name });
     }
   });
   return winners;
 }
 
-function fairestItemAssignment(items: Item[], people: Person[]): ItemWinner[] {
+function fairestItemAssignment(
+  items: Item[],
+  people: Person[]
+): ItemAssignment[] {
   function assignItems(
-    assignments: ItemWinner[],
+    assignments: ItemAssignment[],
     itemIdx: number
-  ): ItemWinner[][] {
+  ): ItemAssignment[][] {
     const item = items[itemIdx];
-    const returnAssignments: ItemWinner[][] = [];
+    const returnAssignments: ItemAssignment[][] = [];
 
     if (item === undefined) {
       return [assignments];
     }
 
-    if (people.find((p) => p.name === item.assignedTo)) {
+    if (people.find((p) => p.name === item.claimedBy)) {
       const newAssignments = [
         ...assignments,
-        { item: item.name, winner: item.assignedTo! },
+        { item: item.name, assignee: item.claimedBy! },
       ];
       return assignItems(newAssignments, itemIdx + 1);
     }
@@ -425,7 +542,7 @@ function fairestItemAssignment(items: Item[], people: Person[]): ItemWinner[] {
       const person = peopleInterestedInItem[i];
       const newAssignments = [
         ...assignments,
-        { item: item.name, winner: person.name },
+        { item: item.name, assignee: person.name },
       ];
       if (itemIdx == items.length - 1) {
         returnAssignments.push(newAssignments);
@@ -438,18 +555,18 @@ function fairestItemAssignment(items: Item[], people: Person[]): ItemWinner[] {
     return returnAssignments;
   }
 
-  function getScoreForAssignment(assignment: ItemWinner[]): number {
+  function getScoreForAssignment(assignments: ItemAssignment[]): number {
     const resourcesForPerson = new Map<string, number>();
     for (const person of people) {
       resourcesForPerson.set(person.name, 0);
     }
 
-    for (const itemWinner of assignment) {
-      const resources = resourcesForPerson.get(itemWinner.winner);
+    for (const assignment of assignments) {
+      const resources = resourcesForPerson.get(assignment.assignee);
       if (resources === undefined) {
         throw new Error("Invalid assignment");
       }
-      resourcesForPerson.set(itemWinner.winner, resources + 1);
+      resourcesForPerson.set(assignment.assignee, resources + 1);
     }
 
     return (
