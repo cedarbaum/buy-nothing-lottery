@@ -6,6 +6,7 @@ import { themeChange } from "theme-change";
 enum Algorithm {
   RANDOM = "random",
   FAIREST = "fairest",
+  MINPICKUPS = "minimum pickups",
 }
 
 type Item = {
@@ -114,6 +115,17 @@ export default function Home() {
     );
   };
 
+  const onClearAllItemClaims = () => {
+    const newItems = [...items];
+    newItems.forEach((item) => {
+      item.claimedBy = null;
+    });
+    setItemsAndPeople(
+      { people, items: newItems },
+      { scroll: false, shallow: true }
+    );
+  };
+
   const onPersonNameChange = (index: number) => (e: any) => {
     const newPeople = [...people];
     newPeople[index].name = e.target.value;
@@ -199,7 +211,14 @@ export default function Home() {
         case Algorithm.RANDOM:
           return randomItemAssignment(newItems, newPeople);
         case Algorithm.FAIREST:
-          return fairestItemAssignment(newItems, newPeople);
+          return maxScoredAssignment(newItems, newPeople, [
+            minimizeGiniCoefficient,
+          ]);
+        case Algorithm.MINPICKUPS:
+          return maxScoredAssignment(newItems, newPeople, [
+            minimizeNumPickups,
+            minimizeGiniCoefficient,
+          ]);
       }
     })();
 
@@ -338,6 +357,11 @@ export default function Home() {
             </div>
           ))}
           <AddButton onClick={onAddItem}>Add item</AddButton>
+          {items.find((i) => people.find((p) => p.name === i.claimedBy)) && (
+            <button className="btn mt-4" onClick={onClearAllItemClaims}>
+              Clear all claims
+            </button>
+          )}
         </div>
         <h1 className="text-2xl font-bold mt-4">People</h1>
         <div className="card mt-4">
@@ -391,17 +415,17 @@ export default function Home() {
         <h1 className="text-2xl font-bold mt-4">Algorithm</h1>
         <select
           className="select select-bordered w-full mt-4"
-          value={algorithm.toUpperCase()}
+          value={algorithm}
           onChange={(e) =>
-            setAlgorithm(e.target.value.toLowerCase() as Algorithm, {
+            setAlgorithm(e.target.value as Algorithm, {
               scroll: false,
               shallow: true,
             })
           }
         >
-          {Object.keys(Algorithm).map((algo) => (
+          {Object.values(Algorithm).map((algo) => (
             <option key={`algo${algo}`} value={algo}>
-              {algo}
+              {algo.toUpperCase()}
             </option>
           ))}
         </select>
@@ -511,9 +535,13 @@ function randomItemAssignment(
   return winners;
 }
 
-function fairestItemAssignment(
+function maxScoredAssignment(
   items: Item[],
-  people: Person[]
+  people: Person[],
+  scoringFunctions: ((
+    people: Person[],
+    assignment: ItemAssignment[]
+  ) => number)[]
 ): ItemAssignment[] {
   function assignItems(
     assignments: ItemAssignment[],
@@ -547,7 +575,7 @@ function fairestItemAssignment(
         ...assignments,
         { item: item.name, assignee: person.name },
       ];
-      if (itemIdx == items.length - 1) {
+      if (itemIdx === items.length - 1) {
         returnAssignments.push(newAssignments);
       } else {
         const assignmentsForIter = assignItems(newAssignments, itemIdx + 1);
@@ -558,42 +586,62 @@ function fairestItemAssignment(
     return returnAssignments;
   }
 
-  function getScoreForAssignment(assignments: ItemAssignment[]): number {
-    const resourcesForPerson = new Map<string, number>();
-    for (const person of people) {
-      resourcesForPerson.set(person.name, 0);
-    }
+  const allAssignments = assignItems([], 0);
+  let bestAssignments: ItemAssignment[][] = allAssignments;
 
-    for (const assignment of assignments) {
-      const resources = resourcesForPerson.get(assignment.assignee);
-      if (resources === undefined) {
-        throw new Error("Invalid assignment");
-      }
-      resourcesForPerson.set(assignment.assignee, resources + 1);
-    }
-
-    return (
-      1 - calculateGiniCoefficient(Array.from(resourcesForPerson.values()))
+  for (const scoringFunction of scoringFunctions) {
+    const scoredAssignments = bestAssignments.map((assignment) => {
+      return { assignment, score: scoringFunction(people, assignment) };
+    });
+    const maxAssignmentScore = scoredAssignments.reduce(
+      (max, cur) => (cur.score > max ? cur.score : max),
+      0
     );
+    bestAssignments = scoredAssignments
+      .filter((a) => a.score === maxAssignmentScore)
+      .map((a) => a.assignment);
+
+    if (bestAssignments.length === 1) {
+      break;
+    }
   }
 
-  const allAssignments = assignItems([], 0);
-  const scoredAssignments = allAssignments.map((assignment) => {
-    return { assignment, score: getScoreForAssignment(assignment) };
-  });
-  const maxAssignmentScore = scoredAssignments.reduce(
-    (max, cur) => (cur.score > max ? cur.score : max),
-    0
-  );
-  const allAssignmentsWithMaxScore = scoredAssignments
-    .filter((a) => a.score == maxAssignmentScore)
-    .map((a) => a.assignment);
-  const winners =
-    allAssignmentsWithMaxScore[
-      Math.floor(Math.random() * allAssignmentsWithMaxScore.length)
-    ];
+  const bestAssignment =
+    bestAssignments[Math.floor(Math.random() * bestAssignments.length)];
 
-  return winners;
+  return bestAssignment;
+}
+
+function minimizeGiniCoefficient(
+  people: Person[],
+  assignment: ItemAssignment[]
+): number {
+  const resourcesForPerson = new Map<string, number>();
+  for (const person of people) {
+    resourcesForPerson.set(person.name, 0);
+  }
+
+  for (const itemAssignment of assignment) {
+    const resources = resourcesForPerson.get(itemAssignment.assignee);
+    if (resources === undefined) {
+      throw new Error("Invalid assignment");
+    }
+    resourcesForPerson.set(itemAssignment.assignee, resources + 1);
+  }
+
+  return 1 - calculateGiniCoefficient(Array.from(resourcesForPerson.values()));
+}
+
+function minimizeNumPickups(
+  people: Person[],
+  assignment: ItemAssignment[]
+): number {
+  const allAssignees = new Set<string>();
+  for (const itemAssignment of assignment) {
+    allAssignees.add(itemAssignment.assignee);
+  }
+
+  return people.length - allAssignees.size;
 }
 
 function calculateGiniCoefficient(distribution: number[]): number {
