@@ -24,6 +24,7 @@ type ItemAssignment = {
   assignee: string;
 };
 
+const defaultTheme = "cyberpunk";
 const themes = [
   "light",
   "dark",
@@ -285,7 +286,7 @@ export default function Home() {
     }
     themeChange(false);
     if (document.documentElement.getAttribute("data-theme") === null) {
-      document.documentElement.setAttribute("data-theme", themes[0]);
+      document.documentElement.setAttribute("data-theme", defaultTheme);
     }
   }, [router.isReady, hydrateUiFromQueryParams]);
 
@@ -305,7 +306,7 @@ export default function Home() {
           </button>
           <select
             data-choose-theme
-            defaultValue={themes[0]}
+            defaultValue={defaultTheme}
             className="select select-bordered"
           >
             {themes.map((theme, themeIdx) => (
