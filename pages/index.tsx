@@ -57,6 +57,9 @@ const themes = [
   "winter",
 ];
 
+const SEARCH_SPACE_WARN_THRESHOLD = 5000000;
+const SEARCH_SPACE_ERROR_THRESHOLD = 20000000;
+
 export default function Home() {
   const router = useRouter();
   const [hydrateUiFromQueryParams, setShouldHydrateUiFromQueryParams] =
@@ -65,6 +68,8 @@ export default function Home() {
   const [itemAssignments, setItemAssignments] = useState<
     ItemAssignment[] | undefined
   >(undefined);
+  const [warning, setWarning] = useState<string | undefined>(undefined);
+  const [error, setError] = useState<string | undefined>(undefined);
 
   const [{ items, people }, setItemsAndPeople] = useQueryStates({
     items: queryTypes
@@ -109,9 +114,17 @@ export default function Home() {
 
   const onDelItem = (index: number) => () => {
     const newItems = [...items];
-    newItems.splice(index, 1);
+    const deletedItems = newItems.splice(index, 1);
+
+    const newPeople = [...people];
+    newPeople.forEach((person) => {
+      person.items = person.items.filter(
+        (item) => item !== deletedItems[0].name
+      );
+    });
+
     setItemsAndPeople(
-      { people, items: newItems },
+      { people: newPeople, items: newItems },
       { scroll: false, shallow: true }
     );
   };
@@ -197,13 +210,16 @@ export default function Home() {
     const newPeople: Person[] = [];
     people.forEach((person) => {
       if (person.name !== "") {
-        const newItems: string[] = [];
+        const newItemsForPerson: string[] = [];
         person.items.forEach((item) => {
-          if (newItems.indexOf(item) < 0) {
-            newItems.push(item);
+          if (
+            newItemsForPerson.indexOf(item) < 0 &&
+            newItems.find((i) => i.name === item) !== undefined
+          ) {
+            newItemsForPerson.push(item);
           }
         });
-        newPeople.push({ name: person.name, items: newItems });
+        newPeople.push({ name: person.name, items: newItemsForPerson });
       }
     });
 
@@ -268,17 +284,41 @@ export default function Home() {
   }, [people.length]);
 
   useEffect(() => {
+    const searchSpaceSize = calculateSearchSpaceSize(items, people);
     setCanRunLottery(
-      items.find((i) => i.name !== "") !== undefined &&
-        people.filter(
+      searchSpaceSize <= SEARCH_SPACE_ERROR_THRESHOLD &&
+        items.find((i) => i.name !== "") !== undefined &&
+        people.find(
           (p) =>
             p.name !== "" &&
             p.items.find(
               (item) => items.find((i) => i.name === item) !== undefined
             ) !== undefined
-        ).length > 0
+        ) !== undefined
     );
   }, [people, items]);
+
+  useEffect(() => {
+    if (algorithm === Algorithm.RANDOM) {
+      setError(undefined);
+      setWarning(undefined);
+      return;
+    }
+
+    const searchSpaceSize = calculateSearchSpaceSize(items, people);
+    if (searchSpaceSize > SEARCH_SPACE_ERROR_THRESHOLD) {
+      setError("The search space is too large to safely run.");
+      setWarning(undefined);
+    } else if (searchSpaceSize > SEARCH_SPACE_WARN_THRESHOLD) {
+      setError(undefined);
+      setWarning(
+        "The search space is large, so this may take a while to run or cause your browser to crash."
+      );
+    } else {
+      setError(undefined);
+      setWarning(undefined);
+    }
+  }, [items, people, algorithm]);
 
   useEffect(() => {
     if (!router.isReady || !hydrateUiFromQueryParams) {
@@ -430,6 +470,50 @@ export default function Home() {
             </option>
           ))}
         </select>
+        {error && (
+          <div className="flex justify-center alert alert-error mt-4 max-w-[500px]">
+            <div>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="stroke-current flex-shrink-0 h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <span>
+                <b>Error:</b> {error}
+              </span>
+            </div>
+          </div>
+        )}
+        {warning && (
+          <div className="flex justify-center alert alert-warning mt-4 max-w-[500px]">
+            <div>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="stroke-current flex-shrink-0 h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+              <span>
+                <b>Warning:</b> {warning}
+              </span>
+            </div>
+          </div>
+        )}
         <button
           className="btn btn-primary mt-4"
           onClick={runLottery}
@@ -663,4 +747,24 @@ function calculateGiniCoefficient(distribution: number[]): number {
   const G = A / 0.5;
 
   return G;
+}
+
+function calculateSearchSpaceSize(items: Item[], people: Person[]): number {
+  let acc = 1;
+  for (const item of items) {
+    if (item.claimedBy) {
+      continue;
+    }
+    const peopleInterestedInItem = people.filter((person) =>
+      person.items.includes(item.name)
+    );
+
+    if (peopleInterestedInItem.length === 0) {
+      continue;
+    }
+
+    acc *= peopleInterestedInItem.length;
+  }
+
+  return acc;
 }
