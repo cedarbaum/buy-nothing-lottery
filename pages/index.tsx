@@ -336,7 +336,7 @@ export default function Home() {
 
   return (
     <main className="flex min-h-screen flex-col items-center">
-      <div className="flex flex-col p-4">
+      <div className="flex flex-col p-2 md:p-4">
         <div className="flex justify-between">
           <button className="btn" onClick={copyUrlToClipboard}>
             Copy URL
@@ -367,7 +367,7 @@ export default function Home() {
               <div className="flex flex-row items-center">
                 <div className="form-control w-full">
                   <label className="input-group">
-                    <span>Item {idx + 1}</span>
+                    <span>{idx + 1}</span>
                     <input
                       type="text"
                       placeholder="Item..."
@@ -415,7 +415,7 @@ export default function Home() {
               <div className="flex flex-row items-center ">
                 <div className="form-control w-full">
                   <label className="input-group">
-                    <span>Person {personIdx + 1}</span>
+                    <span>{personIdx + 1}</span>
                     <input
                       type="text"
                       placeholder="Name..."
@@ -471,7 +471,7 @@ export default function Home() {
           ))}
         </select>
         {error && (
-          <div className="flex justify-center alert alert-error mt-4 max-w-[500px]">
+          <div className="flex justify-center alert alert-error mt-4 max-w-sm">
             <div>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -493,7 +493,7 @@ export default function Home() {
           </div>
         )}
         {warning && (
-          <div className="flex justify-center alert alert-warning mt-4 max-w-[500px]">
+          <div className="flex justify-center alert alert-warning mt-4 max-w-sm">
             <div>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
