@@ -341,13 +341,13 @@ export default function Home() {
           <button className="btn" onClick={copyUrlToClipboard}>
             Copy URL
           </button>
-          <button className="btn" onClick={clearAll}>
+          <button className="btn ml-1" onClick={clearAll}>
             Clear data
           </button>
           <select
             data-choose-theme
             defaultValue={defaultTheme}
-            className="select select-bordered"
+            className="select select-bordered ml-1"
           >
             {themes.map((theme, themeIdx) => (
               <option key={`theme${themeIdx}`} value={theme}>
